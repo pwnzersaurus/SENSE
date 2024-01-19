@@ -18,7 +18,7 @@ SENSE is an advanced machine learning framework that integrates multiple AI meth
 #### Steps
 1. Clone the Repository: 
    ```bash
-   git clone https://github.com/your-repository/SENSE.git
+   git clone https://github.com/pwnzersaurus/SENSE.git
    ```
 2. Navigate to the SENSE Directory:
    ```bash
