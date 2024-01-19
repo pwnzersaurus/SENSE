@@ -69,7 +69,7 @@ We encourage contributions in the form of feature enhancements, optimization str
    - A: While SENSE is advanced, we strive to make it accessible with comprehensive documentation.
 
 3. **Q: Where can I find detailed documentation?**
-   - A: Visit our [Wiki](https://github.com/your-repository/SENSE/wiki) for in-depth documentation.
+   - A: Visit our [Wiki](https://github.com/pwnzersaurus/SENSE/wiki) for in-depth documentation.
 
 ## License
 SENSE is released under the MIT License, facilitating open collaboration while protecting contributor rights.
