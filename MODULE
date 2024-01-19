@@ -1,8 +1,10 @@
 import argparse
 import os
+import random
+import numpy as np
 import psutil
 import tensorflow as tf
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout, LSTM
 from tensorflow.keras.models import Sequential
 from transformers import TFAutoModelForCausalLM, AutoTokenizer
 
@@ -18,48 +20,70 @@ class SARSA_Agent:
 
     def _build_model(self):
         model = Sequential([
-            Dense(24, input_dim=self.state_size, activation='relu'),
-            Dense(24, activation='relu'),
+            Dense(64, input_dim=self.state_size, activation='relu'),
+            Dropout(0.1),
+            Dense(64, activation='relu'),
+            Dropout(0.1),
             Dense(self.action_size, activation='linear')
         ])
         model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(lr=self.alpha))
         return model
 
     def choose_action(self, state):
-        if tf.random.uniform((), 0, 1) < self.epsilon:
-            return tf.random.uniform((), 0, self.action_size, dtype=tf.int32)
+        if tf.random.uniform(()) < self.epsilon:
+            return random.randint(0, self.action_size - 1)
         else:
-            qs = self.model.predict(state)
-            return tf.argmax(qs[0])
+            qs = self.model.predict(state[np.newaxis])
+            return np.argmax(qs[0])
 
     def learn(self, state, action, reward, next_state, next_action, done):
         target = reward
         if not done:
-            target += self.gamma * self.model.predict(next_state)[0][next_action]
-        target_f = self.model.predict(state)
-        target_f[0][action.numpy()] = target
-        self.model.fit(state, target_f, epochs=1, verbose=0)
-# Online Learning Module with a Simple Linear Regression Model
+            q_next = self.model.predict(next_state[np.newaxis])[0][next_action]
+            target += self.gamma * q_next
+        target_f = self.model.predict(state[np.newaxis])
+        target_f[0][action] = target
+        self.model.fit(state[np.newaxis], target_f, epochs=1, verbose=0)
+
+# Online Learning Module with LSTM for sequential data
 class OnlineLearningModule:
-    def __init__(self, input_dim, output_dim):
-        self.model = Sequential([Dense(output_dim, input_dim=input_dim)])
+    def __init__(self, input_dim, output_dim, sequence_length=100):
+        self.model = Sequential([
+            LSTM(50, input_shape=(sequence_length, input_dim), return_sequences=True),
+            Dropout(0.2),
+            LSTM(50),
+            Dropout(0.2),
+            Dense(output_dim)
+        ])
         self.model.compile(optimizer='adam', loss='mse')
 
     def update_model(self, data, labels):
         self.model.fit(data, labels, epochs=1, verbose=0)
 
-# Anomaly Detection using a Simple Statistical Approach
+# Anomaly Detection using Autoencoder
 class AnomalyDetectionModule:
-    def __init__(self, threshold=0.1):
+    def __init__(self, input_dim, threshold=0.1):
         self.threshold = threshold
+        self.model = self._build_model(input_dim)
         self.running_mean = None
         self.running_std = None
         self.count = 0
 
+    def _build_model(self, input_dim):
+        model = Sequential([
+            Dense(64, input_dim=input_dim, activation='relu'),
+            Dense(32, activation='relu'),
+            Dense(32, activation='relu'),
+            Dense(64, activation='relu'),
+            Dense(input_dim, activation='sigmoid')
+        ])
+        model.compile(optimizer='adam', loss='mse')
+        return model
+
     def detect(self, data_point):
         if self.running_mean is None or self.running_std is None:
             self.running_mean = data_point
-            self.running_std = tf.zeros_like(data_point)
+            self.running_std = np.zeros_like(data_point)
             self.count = 1
             return False
 
@@ -70,9 +94,9 @@ class AnomalyDetectionModule:
         self.running_mean = new_mean
 
         if self.count > 1:
-            std_dev = tf.sqrt(self.running_std / (self.count - 1))
-            is_anomaly = tf.abs(data_point - self.running_mean) > self.threshold * std_dev
-            return tf.reduce_any(is_anomaly).numpy()
+            std_dev = np.sqrt(self.running_std / (self.count - 1))
+            is_anomaly = np.abs(data_point - self.running_mean) > self.threshold * std_dev
+            return np.any(is_anomaly)
         return False
 
 # System Resources Monitor
@@ -81,13 +105,17 @@ class SystemResourcesMonitor:
         self.process = psutil.Process(os.getpid())
 
     def report(self):
-        cpu_usage = self.process.cpu_percent()
+        cpu_usage = self.process.cpu_percent(interval=1.0)
         memory_usage = self.process.memory_percent()
         print(f"CPU Usage: {cpu_usage}%, Memory Usage: {memory_usage}%")
+
 # Constants for SENSE
 MODEL_NAME = "gpt2"  # Example model, replace with actual model
 MAX_LENGTH = 512
 POPULATION_SIZE = 10
+MUTATION_RATE = 0.05
+SELECTION_TOP_K = 2
+DIVERSITY_RATE = 0.1
 
 # SENSE Evolutionary Functions
 def mutate_model(model):
@@ -139,3 +167,78 @@ class SENSE_Evolver:
 
     def evaluate(self, model, validation_data):
         return model.evaluate(validation_data)[0]
+
+# Main function to run SENSE
+def main():
+    parser = argparse.ArgumentParser(description='SENSE: Systematic Enhancement for Neural Selection and Evolution')
+    parser.add_argument('--state_size', type=int, default=10, help='Size of the state representation for SARSA Agent')
+    parser.add_argument('--action_size', type=int, default=4, help='Number of actions for SARSA Agent')
+    parser.add_argument('--input_dim', type=int, default=10, help='Input dimension for Online Learning Module')
+    parser.add_argument('--output_dim', type=int, default=1, help='Output dimension for Online Learning Module')
+    parser.add_argument('--epsilon', type=float, default=0.1, help='Epsilon value for epsilon-greedy strategy in SARSA Agent')
+    parser.add_argument('--gamma', type=float, default=0.95, help='Discount factor for SARSA Agent')
+    parser.add_argument('--alpha', type=float, default=0.1, help='Learning rate for SARSA Agent')
+    parser.add_argument('--sequence_length', type=int, default=100, help='Sequence length for Online Learning Module')
+    parser.add_argument('--anomaly_input_dim', type=int, default=10, help='Input dimension for Anomaly Detection Module')
+    parser.add_argument('--anomaly_threshold', type=float, default=0.1, help='Threshold for anomaly detection')
+
+    args = parser.parse_args()
+
+    # Initialize SENSE components
+    sarsa_agent = SARSA_Agent(args.state_size, args.action_size, args.epsilon, args.gamma, args.alpha)
+    online_learning_module = OnlineLearningModule(args.input_dim, args.output_dim, args.sequence_length)
+    anomaly_detection_module = AnomalyDetectionModule(args.anomaly_input_dim, args.anomaly_threshold)
+    system_resources_monitor = SystemResourcesMonitor()
+
+    # Initialize SENSE Evolver
+    evolver = SENSE_Evolver(args.state_size, args.action_size, args.input_dim, args.output_dim, args.epsilon, args.gamma, args.alpha)
+
+    # Create initial population of models
+    population = evolver.create_population()
+
+    # Placeholder for validation data
+    validation_data = None  # Replace with actual validation data
+
+    # Evolve the population
+    print("Evolving the population of models...")
+    new_population = evolver.evolve_population(population, validation_data)
+
+    # Report on the new population
+    print("Evolution complete. New population size:", len(new_population))
+
+    # Monitor system resources
+    system_resources_monitor.report()
+
+    # Additional application logic
+    print("Performing additional tasks with the evolved models...")
+
+    # Placeholder for training and evaluation data
+    training_data = None  # Replace with actual training data
+    evaluation_data = None  # Replace with actual evaluation data
+
+    # Further training of the evolved models
+    for model in new_population:
+        # Placeholder for the training process
+        print(f"Training model {model.name}...")
+        # model.train(training_data) # Replace with actual training logic
+
+    # Evaluation of the evolved models
+    for model in new_population:
+        # Placeholder for the evaluation process
+        print(f"Evaluating model {model.name}...")
+        # performance = model.evaluate(evaluation_data) # Replace with actual evaluation logic
+        # print(f"Model {model.name} Performance: {performance}")
+
+    # Application-specific task: Making predictions
+    # Placeholder for prediction data
+    prediction_data = None  # Replace with actual prediction data
+
+    for model in new_population:
+        print(f"Making predictions with model {model.name}...")
+        # predictions = model.predict(prediction_data) # Replace with actual prediction logic
+        # print(f"Predictions made by model {model.name}: {predictions}")
+
+    print("SENSE application tasks complete.")
+
+if __name__ == "__main__":
+    main()
