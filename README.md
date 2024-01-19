@@ -47,7 +47,7 @@ SENSE consists of several sophisticated AI components:
 
 ## Installation
 ```bash
-git clone https://github.com/your-repository/SENSE.git
+git clone https://github.com/pwnzersaurus/SENSE.git
 cd SENSE
 pip install -r requirements.txt
 ```
