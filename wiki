@@ -73,8 +73,8 @@ Contributors are encouraged to help enhance SENSE by submitting pull requests, r
 
 ## Troubleshooting
 
-Common issues related to installation, configuration, and runtime errors are addressed in this section. Users are encouraged to check this section first for solutions to their problems.
+TODO
 
 ## Release Notes
 
-Details of each version release, including new features, bug fixes, and performance improvements, are documented here. Users can track the evolution of SENSE and understand the changes in each update.
+TODO
